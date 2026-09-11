@@ -1,0 +1,4 @@
+# Dependencies for running the daemon test suite (`pytest` from the repo root).
+# The Windows manifest is the superset of what the tests import.
+-r requirements-windows.txt
+pytest

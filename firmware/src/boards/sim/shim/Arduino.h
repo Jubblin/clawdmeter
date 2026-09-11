@@ -8,6 +8,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+// strlcpy is BSD/macOS/ESP-IDF; glibc only exposes it from 2.38.
+#if defined(__GLIBC__) && (!defined(__GLIBC_PREREQ) || !__GLIBC_PREREQ(2, 38))
+static inline size_t strlcpy(char* dst, const char* src, size_t size) {
+    size_t len = strlen(src);
+    if (size) {
+        size_t n = len < size - 1 ? len : size - 1;
+        memcpy(dst, src, n);
+        dst[n] = '\0';
+    }
+    return len;
+}
+#endif
+
 unsigned long millis(void);
 void delay(unsigned long ms);
 
