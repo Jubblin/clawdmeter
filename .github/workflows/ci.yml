@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: build ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env:
+          - waveshare_amoled_216
+          - waveshare_amoled_18
+          - waveshare_amoled_216_c6
+          - waveshare_amoled_18_c6
+          - waveshare_amoled_206
+          - waveshare_lcd_154
+          - waveshare_lcd_4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: pio-${{ matrix.env }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-${{ matrix.env }}-
+      - run: pip install platformio
+      - run: pio run -d firmware -e ${{ matrix.env }}
+
+  host:
+    name: simulator + host unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: pio-host-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-host-
+      - run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - run: pip install platformio
+      - run: pio test -d firmware -e native
+      - run: pio run -d firmware -e sim
+      - name: headless render smoke test
+        env:
+          SDL_VIDEODRIVER: dummy
+          SIM_AUTOSHOT_MS: '6000'
+          SIM_AUTOSHOT_PATH: sim-autoshot.bmp
+        run: |
+          cd firmware
+          timeout 60 .pio/build/sim/program
+          test -s sim-autoshot.bmp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sim-autoshot
+          path: firmware/sim-autoshot.bmp
+
+  daemon:
+    name: daemon tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: daemon/requirements*.txt
+      - run: pip install -r daemon/requirements-dev.txt
+      - run: pytest -q

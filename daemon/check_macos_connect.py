@@ -5,7 +5,7 @@ Discovers the HID-held 'Clawdmeter', connects without scanning,
 finds the custom GATT characteristics, and writes one test payload.
 Run from Terminal.app (which has Bluetooth permission):
 
-    cd daemon && ./.venv/bin/python ./test_macos_connect.py
+    cd daemon && ./.venv/bin/python ./check_macos_connect.py
 """
 import asyncio
 

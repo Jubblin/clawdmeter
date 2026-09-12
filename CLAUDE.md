@@ -131,6 +131,17 @@ If `pio` isn't on PATH: try `~/.platformio/penv/bin/pio` (Linux/macOS pio instal
 
 Device path differs by OS: `/dev/cu.usbmodem*` on macOS, `/dev/ttyACM0` on Linux. Both expose the ESP32-S3 native USB-JTAG (no boot-mode dance needed).
 
+## Tests
+
+```bash
+pio test -d firmware -e native   # host unit tests (firmware/test/*), no hardware
+pytest                           # daemon tests; deps: pip install -r daemon/requirements-dev.txt
+```
+
+`.github/workflows/ci.yml` runs both on every PR, plus a build of all seven
+board envs and the simulator (with a headless render smoke test that uploads
+`sim-autoshot.bmp` as an artifact).
+
 ## Desktop simulator (`-e sim`) — develop UI without hardware
 
 ```bash
