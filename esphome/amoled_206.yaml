@@ -1,0 +1,80 @@
+# Waveshare ESP32-S3-Touch-AMOLED-2.06 — ESPHome build.
+#
+# See esphome/README.md for the full picture: this device's application
+# logic (BLE data channel + HID keyboard, LVGL UI, splash animations, idle/
+# brightness, usage-rate tracking) is vendored close to verbatim from
+# firmware/src/ under components/clawd_app/vendored/ — read that README
+# before touching this file. Panel bring-up (QSPI bus, CO5300 init
+# sequence, the col_offset1=23 viewport-centering fix) is delegated to
+# ESPHome's own `mipi_spi` component via a small model patch — see
+# esphome/patches/README.md. Run esphome/patches/apply.sh before every
+# compile/run until that model is upstreamed.
+#
+# NOT YET VERIFIED ON HARDWARE. See esphome/README.md's "Status" section.
+
+esphome:
+  name: clawdmeter-206
+  friendly_name: Clawdmeter
+  # NimBLE-Arduino/XPowersLib/SensorLib are Arduino-only, so this build stays
+  # on the arduino framework component (like the rest of firmware/) rather
+  # than esp-idf — see esphome/README.md for why that's the lower-risk
+  # choice for this migration.
+  platformio_options:
+    board_build.arduino.memory_type: qio_opi
+    upload_speed: "921600"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 32MB
+  framework:
+    type: arduino
+    # An explicit (non-named) version is required alongside a custom
+    # platform_version — this just needs to roughly match the Arduino core
+    # pulled in by the pinned pioarduino platform build below; it isn't
+    # independently fetched. Bump if `esphome compile` reports a mismatch.
+    version: 3.1.3
+    platform_version: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.38-1/platform-espressif32.zip
+  variant: esp32s3
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [clawd_app]
+
+spi:
+  type: quad
+  clk_pin: GPIO11
+  data_pins: [GPIO4, GPIO5, GPIO6, GPIO7]
+
+display:
+  - platform: mipi_spi
+    id: clawd_display
+    model: WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.06
+    # cs_pin/reset_pin/dimensions/offset are all set by the model (see
+    # esphome/patches/clawdmeter_amoled_206_model.py) — repeated here only
+    # where it aids readability; remove if the model already covers it and
+    # esphome complains about a duplicate/overridden key.
+    update_interval: never # the vendored app pushes pixels via draw_pixels_at
+                            # from its own LVGL flush callback — ESPHome
+                            # never needs to auto-render this display.
+    show_test_card: false
+
+clawd_app:
+  display_id: clawd_display
+
+# --- Direct GPIOs the vendored app owns itself (Wire.begin, touch reset,
+# BOOT button, PKEY-via-I2C for PWR) --------------------------------------
+# These are NOT declared as ESPHome `i2c:`/`binary_sensor:`/`gpio:` entities
+# on purpose: vendored/boards/waveshare_amoled_206/{board_init,touch,power,
+# input}.cpp already do their own Wire.begin()/pinMode()/digitalRead() calls
+# exactly as the plain PlatformIO firmware does (see esphome/README.md).
+# Declaring the same pins again as ESPHome components would just fight the
+# vendored code for ownership of the bus/pins.
