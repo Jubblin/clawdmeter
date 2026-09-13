@@ -107,7 +107,7 @@ register-level behavior from a datasheet inside a new custom component.
 
 ESPHome 2026.8.x needs **Python 3.12+**. `secrets.yaml` holds the WiFi
 credentials, the API encryption key and the OTA password; it's gitignored,
-so copy the example and fill it in.
+so copy the example and fill it in (CI generates a throwaway one).
 
 ```bash
 python3.12 -m venv ~/.venv-esphome && ~/.venv-esphome/bin/pip install 'esphome==2026.8.2'

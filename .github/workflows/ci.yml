@@ -92,8 +92,11 @@ jobs:
       - run: pip install esphome==2026.8.2
       - name: register the CO5300 2.06 panel model
         run: esphome/patches/apply.sh "$(which python3)"
-      - name: placeholder secrets (wifi/api/ota keys are per-device)
-        run: cp esphome/secrets.yaml.example esphome/secrets.yaml
+      - name: throwaway secrets (wifi/api/ota keys are per-device)
+        run: |
+          key=$(python3 -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())')
+          printf 'wifi_ssid: ci\nwifi_password: ci\napi_encryption_key: %s\nota_password: ci\n' \
+            "$key" > esphome/secrets.yaml
       - run: esphome compile esphome/amoled_206.yaml
 
   daemon:
