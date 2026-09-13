@@ -89,7 +89,9 @@ jobs:
             ~/.platformio/.cache
           key: esphome-206-${{ hashFiles('esphome/amoled_206.yaml') }}
           restore-keys: esphome-206-
-      - run: pip install esphome==2026.8.2
+      # wheels only, so no dependency's setup.py runs; the three exceptions
+      # ship sdist-only at the versions esphome pins.
+      - run: pip install --only-binary :all: --no-binary paho-mqtt,esptool,crcmod esphome==2026.8.2
       - name: register the CO5300 2.06 panel model
         run: esphome/patches/apply.sh "$(which python3)"
       - name: throwaway secrets (wifi/api/ota keys are per-device)
