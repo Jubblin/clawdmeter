@@ -1,6 +1,6 @@
 #include "../../hal/display_hal.h"
 #include "display_esphome.h"
-#include "esphome/components/mipi_spi/mipi_spi.h"
+#include "esphome/components/display/display.h"
 
 // ESPHome-build display_hal implementation for waveshare_amoled_206.
 //
@@ -14,15 +14,18 @@
 // forwards the shared HAL calls (used by main.cpp's LVGL glue and by
 // idle.cpp/brightness.cpp) onto that already-initialized display object.
 //
-// The ClawdApp component (clawd_app.cpp) calls display_hal_set_display()
-// once at startup with the `mipi_spi::MipiSpi*` instance named in YAML via
+// The ClawdApp component (clawd_app.cpp) calls display_hal_bind()
+// once at startup with the display instance named in YAML via
 // `clawd_app: display_id:`. It must run after the display component's own
 // setup() — see ClawdApp::get_setup_priority() (setup_priority::LATE).
 
-static esphome::mipi_spi::MipiSpi* g_display = nullptr;
+static esphome::display::Display* g_display = nullptr;
+static std::function<void(uint8_t)> g_set_brightness;
 
-void display_hal_set_display(esphome::mipi_spi::MipiSpi* disp) {
+void display_hal_bind(esphome::display::Display* disp,
+                      std::function<void(uint8_t)> set_brightness) {
     g_display = disp;
+    g_set_brightness = std::move(set_brightness);
 }
 
 void display_hal_init(void) {
@@ -36,11 +39,11 @@ void display_hal_begin(void) {
     // pulsed reset; this just matches the original display_hal_begin()
     // contract (clear + default brightness) before LVGL starts drawing.
     g_display->fill(esphome::Color(0, 0, 0));
-    g_display->set_brightness(200);
+    display_hal_set_brightness(200);
 }
 
 void display_hal_set_brightness(uint8_t level) {
-    if (g_display) g_display->set_brightness(level);
+    if (g_set_brightness) g_set_brightness(level);
 }
 
 void display_hal_fill_screen(uint16_t color565) {
