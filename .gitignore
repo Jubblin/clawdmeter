@@ -19,3 +19,7 @@ daemon/.venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# ESPHome build artifacts + local device secrets
+esphome/.esphome/
+esphome/secrets.yaml

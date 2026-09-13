@@ -74,6 +74,28 @@ jobs:
           name: sim-autoshot
           path: firmware/sim-autoshot.bmp
 
+  esphome:
+    name: esphome build (amoled_206)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'  # esphome 2026.8 requires >=3.12
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/esphome
+            ~/.platformio/.cache
+          key: esphome-206-${{ hashFiles('esphome/amoled_206.yaml') }}
+          restore-keys: esphome-206-
+      - run: pip install esphome==2026.8.2
+      - name: register the CO5300 2.06 panel model
+        run: esphome/patches/apply.sh "$(which python3)"
+      - name: placeholder secrets (wifi/api/ota keys are per-device)
+        run: cp esphome/secrets.yaml.example esphome/secrets.yaml
+      - run: esphome compile esphome/amoled_206.yaml
+
   daemon:
     name: daemon tests
     runs-on: ubuntu-latest

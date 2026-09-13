@@ -4,7 +4,7 @@
 namespace esphome::clawd_app {
 
 void ClawdApp::setup() {
-  display_hal_set_display(this->display_);
+  display_hal_bind(this->display_, this->set_brightness_);
   app_setup();
 }
 
