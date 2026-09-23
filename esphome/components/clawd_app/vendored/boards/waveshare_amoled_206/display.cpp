@@ -1,5 +1,5 @@
 #include "../../hal/display_hal.h"
-#include "display_esphome.h"
+#include "../../hal/display_esphome.h"
 #include "esphome/components/display/display.h"
 
 // ESPHome-build display_hal implementation for waveshare_amoled_206.

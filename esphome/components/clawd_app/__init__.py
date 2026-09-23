@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import esphome.codegen as cg
@@ -13,36 +14,54 @@ clawd_app_ns = cg.esphome_ns.namespace("clawd_app")
 ClawdApp = clawd_app_ns.class_("ClawdApp", cg.Component)
 
 CONF_DISPLAY_ID = "display_id"
+CONF_BOARD = "board"
+
+VENDORED_DIR = Path(__file__).parent / "vendored"
+BOARDS_DIR = VENDORED_DIR / "boards"
+BOARDS = sorted(p.name for p in BOARDS_DIR.iterdir() if p.is_dir())
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ClawdApp),
         cv.Required(CONF_DISPLAY_ID): cv.use_id(MipiSpi),
+        cv.Required(CONF_BOARD): cv.one_of(*BOARDS, lower=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-VENDORED_DIR = Path(__file__).parent / "vendored"
 VENDORED_SUFFIXES = (".c", ".cpp", ".h", ".hpp")
 # The shared ES8311 chime engine needs Arduino's ESP_I2S library, which
-# arduino-esp32 doesn't expose a selective-compilation switch for, and this
-# board's sound_hal is a no-op anyway (vendored/boards/.../sound.cpp).
+# arduino-esp32 doesn't expose a selective-compilation switch for. Every
+# board's vendored sound_hal is a no-op in this build (vendored/boards/*/
+# sound.cpp), so nothing references it.
 VENDORED_EXCLUDED = frozenset({"chime.cpp", "chime.h"})
 
 
-def _copy_vendored_sources() -> None:
+def _copy_vendored_sources(board: str) -> None:
     """Mirror vendored/ into the build's src/ tree.
 
     ESPHome only picks up source files sitting directly in an external
     component's directory, so the vendored firmware — which is a directory
     tree — has to be copied in by hand. src/ is globbed recursively by the
     generated CMakeLists, and `#include "vendored/..."` resolves against it.
+
+    Only the selected board's folder is copied: every board implements the
+    same display_hal/touch_hal/... symbols, so copying two would be a
+    duplicate-symbol link error. This is the equivalent of the PlatformIO
+    build's per-env `build_src_filter`.
     """
     dest_root = Path(CORE.relative_src_path("vendored"))
+    skipped_boards = tuple(BOARDS_DIR / b for b in BOARDS if b != board)
+    # A build dir left over from a different `board:` would otherwise keep
+    # compiling: ESPHome only cleans it on a core config change.
+    for other in skipped_boards:
+        shutil.rmtree(dest_root / "boards" / other.name, ignore_errors=True)
     for src in sorted(VENDORED_DIR.rglob("*")):
         if not src.is_file() or src.suffix not in VENDORED_SUFFIXES:
             continue
         if src.name in VENDORED_EXCLUDED:
+            continue
+        if any(src.is_relative_to(other) for other in skipped_boards):
             continue
         dest = dest_root / src.relative_to(VENDORED_DIR)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -50,7 +69,8 @@ def _copy_vendored_sources() -> None:
 
 
 async def to_code(config):
-    _copy_vendored_sources()
+    board = config[CONF_BOARD]
+    _copy_vendored_sources(board)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -83,7 +103,8 @@ async def to_code(config):
     # NimBLE peripheral-only role + connection-parameter tuning — see the
     # onConnParamsUpdate comment in vendored/ble.cpp for why the PPCP values
     # matter (Windows supervision-timeout workaround). Matches
-    # firmware/platformio.ini's [env:waveshare_amoled_206] build_flags.
+    # firmware/platformio.ini's per-board build_flags (they're identical
+    # across the S3 boards this build supports).
     for flag in (
         "-DBOARD_HAS_PSRAM",
         "-DXPOWERS_CHIP_AXP2101",
