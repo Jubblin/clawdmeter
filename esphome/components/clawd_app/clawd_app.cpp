@@ -1,5 +1,5 @@
 #include "clawd_app.h"
-#include "vendored/boards/waveshare_amoled_206/display_esphome.h"
+#include "vendored/hal/display_esphome.h"
 
 namespace esphome::clawd_app {
 

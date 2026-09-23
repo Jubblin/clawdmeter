@@ -96,6 +96,7 @@ display:
     show_test_card: false
 
 clawd_app:
+  board: waveshare_amoled_206
   display_id: clawd_display
 
 # --- Direct GPIOs the vendored app owns itself (Wire.begin, touch reset,
