@@ -75,8 +75,12 @@ jobs:
           path: firmware/sim-autoshot.bmp
 
   esphome:
-    name: esphome build (amoled_206)
+    name: esphome build (${{ matrix.board }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [amoled_206, amoled_216]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -87,8 +91,8 @@ jobs:
           path: |
             ~/.cache/esphome
             ~/.platformio/.cache
-          key: esphome-206-${{ hashFiles('esphome/amoled_206.yaml') }}
-          restore-keys: esphome-206-
+          key: esphome-${{ matrix.board }}-${{ hashFiles(format('esphome/{0}.yaml', matrix.board)) }}
+          restore-keys: esphome-${{ matrix.board }}-
       # wheels only, so no dependency's setup.py runs; the three exceptions
       # ship sdist-only at the versions esphome pins.
       - run: >-
@@ -101,7 +105,7 @@ jobs:
           key=$(python3 -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())')
           printf 'wifi_ssid: clawdmeter-ci\nwifi_password: ci-placeholder\napi_encryption_key: %s\nota_password: ci-placeholder\n' \
             "$key" > esphome/secrets.yaml
-      - run: esphome compile esphome/amoled_206.yaml
+      - run: esphome compile esphome/${{ matrix.board }}.yaml
 
   daemon:
     name: daemon tests
