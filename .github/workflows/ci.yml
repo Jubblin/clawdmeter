@@ -38,7 +38,18 @@ jobs:
           key: pio-${{ matrix.env }}-${{ hashFiles('firmware/platformio.ini') }}
           restore-keys: pio-${{ matrix.env }}-
       - run: pip install platformio
-      - run: pio run -d firmware -e ${{ matrix.env }}
+      # pioarduino bootstraps its own penv on first use and that install fails
+      # intermittently ("Failed to install Python dependencies into penv"),
+      # taking a random board of the matrix down with it. Retry from scratch.
+      - name: build
+        run: |
+          for attempt in 1 2 3; do
+            pio run -d firmware -e ${{ matrix.env }} && exit 0
+            echo "::warning::build attempt $attempt failed, retrying"
+            rm -rf ~/.platformio/penv
+            sleep 15
+          done
+          exit 1
 
   host:
     name: simulator + host unit tests
@@ -99,6 +110,7 @@ jobs:
           pip install --only-binary :all:
           --no-binary paho-mqtt,esptool,crcmod esphome==2026.8.2
       - name: register the CO5300 2.06 panel model
+        if: matrix.board == 'amoled_206'
         run: esphome/patches/apply.sh "$(which python3)"
       - name: throwaway secrets (wifi/api/ota keys are per-device)
         run: |
