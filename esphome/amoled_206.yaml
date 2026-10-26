@@ -27,13 +27,23 @@ esp32:
   board: esp32-s3-devkitc-1
   flash_size: 32MB
   framework:
+    # No version/platform_version pin: recent ESPHome builds the Arduino core
+    # as an ESP-IDF component and fetches a matching IDF tarball from its own
+    # mirror, so pinning a pioarduino platform here just asks for an IDF
+    # release that mirror doesn't carry.
     type: arduino
-    # An explicit (non-named) version is required alongside a custom
-    # platform_version — this just needs to roughly match the Arduino core
-    # pulled in by the pinned pioarduino platform build below; it isn't
-    # independently fetched. Bump if `esphome compile` reports a mismatch.
-    version: 3.1.3
-    platform_version: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.38-1/platform-espressif32.zip
+    sdkconfig_options:
+      # NimBLE-Arduino compiles to nothing (and errors on bare `#if
+      # CONFIG_BT_ENABLED`) unless the IDF Bluetooth controller + NimBLE host
+      # are enabled in sdkconfig. The vendored app is a BLE peripheral only.
+      CONFIG_BT_ENABLED: y
+      CONFIG_BT_CONTROLLER_ENABLED: y
+      CONFIG_BT_NIMBLE_ENABLED: y
+      CONFIG_BT_BLUEDROID_ENABLED: n
+    advanced:
+      # OTA on >16MB flash needs IDF's experimental large-flash support; the
+      # board ships 32MB (default_32MB.csv in the PlatformIO build).
+      enable_idf_experimental_features: true
   variant: esp32s3
 
 psram:
@@ -42,6 +52,24 @@ psram:
 
 logger:
   hardware_uart: USB_SERIAL_JTAG
+
+# Network stack: this is the half of the migration the PlatformIO firmware
+# can't do — Home Assistant/MQTT as the data path, plus OTA so a flashed
+# board never needs the USB cable again. Copy secrets.yaml.example to
+# secrets.yaml (gitignored) before building. WiFi coexists with the
+# vendored NimBLE peripheral on the S3's shared radio; this has not been
+# validated on hardware yet (see README.md's "Status").
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
 
 external_components:
   - source:
