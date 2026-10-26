@@ -1,0 +1,83 @@
+# Waveshare ESP32-S3-Touch-AMOLED-2.16 — ESPHome build.
+#
+# Second board on the ESPHome path after amoled_206.yaml; read
+# esphome/README.md first. Everything structural is the same as the 2.06:
+# the application (BLE data channel + HID keyboard, LVGL UI, splash
+# animations, idle/brightness) is vendored from firmware/src/ and the panel
+# is driven by ESPHome's `mipi_spi` component. Board-specific differences
+# from the 2.06 config: a different QSPI clock pin, a 480×480 square panel
+# that needs no GRAM offset (so no model patch — ESPHome ships this model),
+# 16MB flash, IMU-driven software rotation, and a second push button.
+#
+# NOT YET VERIFIED ON HARDWARE. See esphome/README.md's "Status" section.
+
+esphome:
+  name: clawdmeter-216
+  friendly_name: Clawdmeter
+  platformio_options:
+    board_build.arduino.memory_type: qio_opi
+    upload_speed: "921600"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework:
+    type: arduino
+    sdkconfig_options:
+      # NimBLE-Arduino needs the IDF Bluetooth controller + NimBLE host
+      # enabled; see amoled_206.yaml for the full story.
+      CONFIG_BT_ENABLED: y
+      CONFIG_BT_CONTROLLER_ENABLED: y
+      CONFIG_BT_NIMBLE_ENABLED: y
+      CONFIG_BT_BLUEDROID_ENABLED: n
+  variant: esp32s3
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [clawd_app]
+
+spi:
+  type: quad
+  clk_pin: GPIO38
+  data_pins: [GPIO4, GPIO5, GPIO6, GPIO7]
+
+display:
+  - platform: mipi_spi
+    id: clawd_display
+    model: WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.16
+    # The upstream model declares reset_pin: 39. This kit's panel reset is
+    # GPIO2 (LCD_RESET in firmware/src/boards/waveshare_amoled_216/board.h,
+    # hardware-verified by the shipping PlatformIO firmware), shared with
+    # the CST9220's reset line.
+    reset_pin: GPIO2
+    update_interval: never # the vendored app pushes pixels itself
+    show_test_card: false
+
+clawd_app:
+  board: waveshare_amoled_216
+  display_id: clawd_display
+
+# As on the 2.06: I2C (touch/PMU/IMU), the touch reset pulse and both
+# buttons stay owned by the vendored board code rather than being declared
+# as ESPHome entities, so the two builds don't fight over the same pins.

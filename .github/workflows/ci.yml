@@ -38,7 +38,18 @@ jobs:
           key: pio-${{ matrix.env }}-${{ hashFiles('firmware/platformio.ini') }}
           restore-keys: pio-${{ matrix.env }}-
       - run: pip install platformio
-      - run: pio run -d firmware -e ${{ matrix.env }}
+      # pioarduino bootstraps its own penv on first use and that install fails
+      # intermittently ("Failed to install Python dependencies into penv"),
+      # taking a random board of the matrix down with it. Retry from scratch.
+      - name: build
+        run: |
+          for attempt in 1 2 3; do
+            pio run -d firmware -e ${{ matrix.env }} && exit 0
+            echo "::warning::build attempt $attempt failed, retrying"
+            rm -rf ~/.platformio/penv
+            sleep 15
+          done
+          exit 1
 
   host:
     name: simulator + host unit tests
@@ -75,8 +86,12 @@ jobs:
           path: firmware/sim-autoshot.bmp
 
   esphome:
-    name: esphome build (amoled_206)
+    name: esphome build (${{ matrix.board }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [amoled_206, amoled_216]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -87,21 +102,22 @@ jobs:
           path: |
             ~/.cache/esphome
             ~/.platformio/.cache
-          key: esphome-206-${{ hashFiles('esphome/amoled_206.yaml') }}
-          restore-keys: esphome-206-
+          key: esphome-${{ matrix.board }}-${{ hashFiles(format('esphome/{0}.yaml', matrix.board)) }}
+          restore-keys: esphome-${{ matrix.board }}-
       # wheels only, so no dependency's setup.py runs; the three exceptions
       # ship sdist-only at the versions esphome pins.
       - run: >-
           pip install --only-binary :all:
           --no-binary paho-mqtt,esptool,crcmod esphome==2026.8.2
       - name: register the CO5300 2.06 panel model
+        if: matrix.board == 'amoled_206'
         run: esphome/patches/apply.sh "$(which python3)"
       - name: throwaway secrets (wifi/api/ota keys are per-device)
         run: |
           key=$(python3 -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())')
           printf 'wifi_ssid: clawdmeter-ci\nwifi_password: ci-placeholder\napi_encryption_key: %s\nota_password: ci-placeholder\n' \
             "$key" > esphome/secrets.yaml
-      - run: esphome compile esphome/amoled_206.yaml
+      - run: esphome compile esphome/${{ matrix.board }}.yaml
 
   daemon:
     name: daemon tests
